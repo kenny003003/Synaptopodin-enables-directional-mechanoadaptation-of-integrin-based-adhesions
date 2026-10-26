@@ -2,18 +2,18 @@ clear; close all; clc;
 
 %% === PARAMETERS (Matched to parameter_sweep_v3) ===
 % 1. Force Groups
-F_BASE = 5;
+F_BASE = 6;
 FORCE_RATIOS = [1, 3.5, 15]; 
-FORCE_LABELS = {'Low Force', 'Med Force', 'High Force'};
+FORCE_LABELS = {'P*/P_0', '4P*/P_0', '14P*/P_0'};
 
 % 2. Biological Conditions 
-% Values taken from parameter_sweep_v3: C_VALUES=[1.3, 2.45], AR_VALUES=[1.4]
+% Physical parameterization (Supplementary Table 1): C_VALUES=[1.5, 2.7], AR=1.4
 % Structure: [C_value, Aspect_Ratio]
 CONDITIONS = [
-    1.3,  1.4;   % Condition 1 (Control)
-    2.45, 1.4    % Condition 2 (Synops KO)
+    1.5,  1.4;   % Condition 1 (Control)
+    2.7,  1.4    % Condition 2 (Synops KO)
 ];
-COND_NAMES = {'Control (C=1.3)', 'Synops KO (C=2.45)'};
+COND_NAMES = {'Control (C=1.5)', 'Synpo^{-/-} (C=2.7)'};
 COND_COLORS = [0.4 0.7 1.0;  % Light Blue 
                1.0 0.4 0.4]; % Light Red 
 
@@ -26,17 +26,12 @@ MAX_TIMESTEPS = 250;
 DT = 0.01;
 
 % 4. Physical Constants (Matched to v3)
-r0 = 0.3; h = 0.1; k0 = 10000000; F0 = 0.0;
-k_off0 = 0.8; N0 = 1; K_s = 1; K_0 = 1; n_exp = 1.05; m_exp = 2;
+r0 = 0.3; h = 0.1; k0 = 1000000; F0 = 2.5;
+k_off0 = 0.8; N0 = 2.5; K_s = 2.5; K_0 = 2.5; n_exp = 1.1; m_exp = 4;
 
 %% === SIMULATION LOOP ===
 % Storage: attachment_data(Force_Idx, Condition_Idx, Set_Idx)
 attachment_data = zeros(length(FORCE_RATIOS), size(CONDITIONS, 1), N_SETS);
-
-% Check for parallel pool
-if isempty(gcp('nocreate'))
-    parpool; 
-end
 
 fprintf('=== Starting Simulation (Attachment Rate) ===\n');
 fprintf('Running %d sets of %d cells for each condition...\n', N_SETS, N_CELLS_PER_SET);
@@ -69,13 +64,13 @@ for f_idx = 1:length(FORCE_RATIOS)
         results_temp = zeros(1, N_SETS);
         
         % Run sets in Parallel
-        parfor set_k = 1:N_SETS
+        for set_k = 1:N_SETS
             % Run N cells for this set
             detached_count = 0;
             
             for cell_k = 1:N_CELLS_PER_SET
                 % 1. Generate Fibers
-                % (RNG is handled automatically by parfor)
+                % (RNG is handled automatically by for)
                 theta_i = generate_fiber_angles(N_FIBERS, polarization);
                 
                 % Geometry
@@ -134,7 +129,7 @@ end
 toc(total_start);
 
 %% === VISUALIZATION ===
-figure('Position', [100 100 1000 600]);
+figure('Position',[100 100 1000 600],'Visible','off');
 
 % Calculate Statistics
 means = mean(attachment_data, 3); % Mean across sets
@@ -176,8 +171,8 @@ end
 
 % 3. Styling
 ylabel('Attachment Rate (%)', 'FontSize', 14, 'FontWeight', 'bold');
-xlabel('Force Conditions', 'FontSize', 14, 'FontWeight', 'bold');
-title('Cell Attachment: Control vs Synops KO', 'FontSize', 16);
+xlabel('Normal Stress', 'FontSize', 14, 'FontWeight', 'bold');
+%% title removed to match figure
 xticks(1:length(FORCE_RATIOS));
 xticklabels(FORCE_LABELS);
 ylim([0 105]); 
@@ -186,6 +181,10 @@ grid on;
 set(gca, 'LineWidth', 1.5, 'FontSize', 12);
 hold off;
 
+
+
+exportgraphics(gcf, "barplot.png", "Resolution", 170);
+fprintf("Saved barplot.png\n");
 
 %% === HELPER FUNCTIONS ===
 

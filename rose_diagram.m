@@ -3,7 +3,7 @@ clear; close all; clc;
 
 % --- 1. SETUP & CONSTANTS ---
 % Conditions
-C_VALUES = [1.3, 2.45];
+C_VALUES = [1.5, 2.7];
 % Colors for Control (Left)
 COLOR_CTL_FILL = [0.6 0.6 0.6]; % Grey
 COLOR_CTL_LINE = [0 0 0];       % Black
@@ -23,8 +23,8 @@ F_BASE = 6;
 F_RATIO = 3.5;
 F_INERTIAL = F_RATIO * F_BASE; 
 AR_VAL = 1.4;
-r0 = 0.3; h = 0.1; k0 = 10000000; F0 = 0.0;
-k_off0 = 0.8; N0 = 1; K_s = 1; K_0 = 1; n_exp = 1.05; m_exp = 2;
+r0 = 0.3; h = 0.1; k0 = 1000000; F0 = 2.5;
+k_off0 = 0.8; N0 = 2.5; K_s = 2.5; K_0 = 2.5; n_exp = 1.1; m_exp = 4;
 
 % Rose Plot Targets (0 to 180)
 target_angles_deg = [0, 30, 60, 90, 120, 150, 180];
@@ -40,14 +40,14 @@ b = radius_base / sqrt(AR_VAL);
 all_rose_data = cell(1, 2);
 
 %% --- 2. SIMULATION LOOP ---
-if isempty(gcp('nocreate')), parpool; end
+%% (pool disabled)
 for c_idx = 1:length(C_VALUES)
     C_CURRENT = C_VALUES(c_idx);
     fprintf('Running %d trials for C=%.2f...\n', N_TRIALS, C_CURRENT);
     
     current_data = NaN(length(target_angles_deg), N_TRIALS);
     
-    parfor trial = 1:N_TRIALS
+    for trial = 1:N_TRIALS
         % Initialize
         theta_i = linspace(0, 2*pi, N_FIBERS+1);
         theta_i(end) = []; 
@@ -126,7 +126,7 @@ for c_idx = 1:length(C_VALUES)
 end
 
 %% === 3. VISUALIZATION (Clean Wedges + SEM Bars) ===
-figure('Color', 'w', 'Position', [50 100 1200 600]);
+figure('Color','w','Position',[50 100 1200 600],'Visible','off');
 
 % Error Bar Params
 capWidth = deg2rad(2); % Width of the caps on error bars
@@ -236,3 +236,6 @@ for c_idx = 1:2
     xlim([-1.6, 1.6]); 
     ylim([-1.6, 1.6]); 
 end
+%% headless save
+exportgraphics(gcf, "rose_diagram.png", "Resolution", 160);
+fprintf("Saved rose_diagram.png\n");

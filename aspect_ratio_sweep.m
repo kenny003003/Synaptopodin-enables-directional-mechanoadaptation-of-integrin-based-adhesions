@@ -2,8 +2,8 @@ clear; close all; clc;
 
 %% === PARAMETERS ===
 % Conditions
-C_VALUES = [1.3, 2.45];      % Control vs KO
-LABELS = {'Control (C=1.3)', 'Synpo^{-/-} (C=2.45)'}; % Updated for LaTeX formatting
+C_VALUES = [1.5, 2.7];      % Control vs KO
+LABELS = {'Control (C=1.5)', 'Synpo^{-/-} (C=2.7)'}; % Updated for LaTeX formatting
 
 % Publication-Level Colors (RGB Triplets)
 % Deep Blue for Control, Brick Red for KO
@@ -11,7 +11,7 @@ COLOR_MAP = {[179,229,252]/255,[251,154,154]/255};
 FILL_MAP  = {[179,229,252]/255,[251,154,154]/255}; 
 
 % Simulation Settings
-N_TRIALS = 1000;             
+N_TRIALS = 400;             
 N_FIBERS = 100;
 MAX_TIMESTEPS = 250;
 DT = 0.01;
@@ -21,15 +21,11 @@ F_BASE = 6;
 F_RATIO = 3.5;               
 F_INERTIAL = F_RATIO * F_BASE; 
 AR_VAL = 1.4;                
-r0 = 0.3; h = 0.1; k0 = 10000000; F0 = 0.0;
-k_off0 = 0.8; N0 = 1; K_s = 1; K_0 = 1; n_exp = 1.02; m_exp = 2;
+r0 = 0.3; h = 0.1; k0 = 1000000; F0 = 2.5;
+k_off0 = 0.8; N0 = 2.5; K_s = 2.5; K_0 = 2.5; n_exp = 1.1; m_exp = 4;
 
 %% === SIMULATION LOOP ===
 ar_results = cell(length(C_VALUES), 1);
-
-if isempty(gcp('nocreate'))
-    parpool; 
-end
 
 fprintf('Starting batch simulation (%d trials)...\n', N_TRIALS);
 t_total = tic;
@@ -44,7 +40,7 @@ for c_idx = 1:length(C_VALUES)
     
     ar_history_matrix = NaN(N_TRIALS, MAX_TIMESTEPS);
     
-    parfor trial = 1:N_TRIALS
+    for trial = 1:N_TRIALS
         trial_ar_history = NaN(1, MAX_TIMESTEPS);
         theta_i = generate_fiber_angles_uniform(N_FIBERS);
         
@@ -90,20 +86,20 @@ toc(t_total);
 
 %% === PUBLICATION PLOTTING ===
 % Create figure with white background and specific aspect ratio
-figure('Color', 'w', 'Position', [100 100 700 550]); 
+figure('Color','w','Position',[100 100 780 460],'Visible','off'); 
 hold on;
 
 % Define Axes Properties upfront for clean look
 ax = gca;
-ax.FontSize = 16;
-ax.LineWidth = 1.5;
+ax.FontSize = 12;
+ax.LineWidth = 1.0;
 ax.Box = 'on';
-ax.TickDir = 'out';
+ax.TickDir = 'in';
 ax.FontName = 'Arial'; % or 'Helvetica'
 ax.XColor = [0.1 0.1 0.1];
 ax.YColor = [0.1 0.1 0.1];
 
-time_axis = (1:MAX_TIMESTEPS) * DT;
+time_axis = (1:MAX_TIMESTEPS) / MAX_TIMESTEPS;
 
 for c_idx = 1:length(C_VALUES)
     data = ar_results{c_idx}; 
@@ -131,26 +127,50 @@ for c_idx = 1:length(C_VALUES)
          'HandleVisibility', 'off'); % Turn off legend handle for fill
      
     % 2. Draw Mean Line
-    plot(t_plot, mu_plot, 'Color', COLOR_MAP{c_idx}, 'LineWidth', 3, ...
+    plot(t_plot, mu_plot, 'Color', COLOR_MAP{c_idx}, 'LineWidth', 2.2, ...
          'DisplayName', LABELS{c_idx});
 
 end
 
 % Labels
-xlabel('Time (s)', 'FontSize', 18, 'FontWeight', 'bold');
-ylabel('Aspect Ratio', 'FontSize', 18, 'FontWeight', 'bold');
+%% xlabel removed
+%% ylabel removed
 
 % Legend (Publication Style: No Box, specific location)
-lgd = legend('Location', 'best');
+lgd = legend('Location', 'northwest');
 lgd.EdgeColor = 'none'; % Remove box outline
-lgd.FontSize = 14;
+lgd.FontSize = 12;
 
 % Limits and Grid
-ylim([1, 2.2]); 
-xlim([0, MAX_TIMESTEPS*DT]);
+ylim([1.2 2]); yticks([1.2 1.4 1.6 1.8 2]); 
+xlim([0 1]); set(ax,'XTickLabel',[],'YTickLabel',[]);
 % grid on; % Optional: Many high-impact journals prefer no grid, uncomment if needed
 
 hold off;
+
+exportgraphics(gcf, "aspect_ratio_sweep.png", "Resolution", 170);
+fprintf("Saved aspect_ratio_sweep.png\n");
+
+
+%% Export two-curve data to Excel
+export_T = table();
+export_T.Normalized_time = time_axis(:);
+condtags = {'Control_C1p5','Synpo_C2p7'};
+for ci = 1:length(C_VALUES)
+    dd = ar_results{ci};
+    mu = mean(dd,1,"omitnan").';
+    sg = std(dd,0,1,"omitnan").';
+    nv = sum(~isnan(dd),1).';
+    sem = sg./sqrt(nv);
+    tg = condtags{ci};
+    export_T.([tg '_mean']) = mu;
+    export_T.([tg '_SEM']) = sem;
+    export_T.([tg '_CI95low']) = mu - 1.96*sem;
+    export_T.([tg '_CI95high']) = mu + 1.96*sem;
+end
+writetable(export_T, "panelB_curve_data.xlsx");
+fprintf("Saved panelB_curve_data.xlsx (%d rows)\n", height(export_T));
+
 
 %% === HELPER FUNCTIONS ===
 function theta_i = generate_fiber_angles_uniform(N)
@@ -210,35 +230,3 @@ function [delta_new, bonded_new] = solve_physics_step(delta_start, bonded_mask, 
         bonded_new(broken_indices(is_broken)) = false;
     end
 end
-
-%% === DATA EXPORT FOR PRISM ===
-fprintf('Exporting data for GraphPad Prism...\n');
-
-% Initialize variables for table storage
-% Prism Format: Time, Mean(A), SEM(A), N(A), Mean(B), SEM(B), N(B)...
-export_table = table();
-export_table.Time_s = time_axis';
-
-for c_idx = 1:length(C_VALUES)
-    data = ar_results{c_idx}; 
-    
-    % Recalculate Statistics (Same as plotting section)
-    mu = mean(data, 1, 'omitnan')';
-    sigma = std(data, 0, 1, 'omitnan')';
-    n_valid = sum(~isnan(data), 1)';
-    sem = sigma ./ sqrt(n_valid);
-    
-    % Create safe column names
-    col_base = regexprep(LABELS{c_idx}, '[^\w]', '_'); % Remove LaTeX/Special chars
-    col_base = erase(col_base, {'__', '{', '}'});      % Cleanup
-    
-    % Add to table
-    export_table.(['Mean_' col_base]) = mu;
-    export_table.(['SEM_' col_base]) = sem;
-    export_table.(['N_' col_base]) = n_valid;
-end
-
-% Write to Excel
-filename = 'Prism_Export_AR_Data.xlsx';
-writetable(export_table, filename);
-fprintf('Success! Data saved to: %s\n', fullfile(pwd, filename));
